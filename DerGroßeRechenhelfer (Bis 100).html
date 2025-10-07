@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktiver Mathezähler</title>
+    <style>
+        /* *** CSS (Design) *** */
+
+        :root {
+            /* Hintergrundfarbe des Gitters für Subtraktion */
+            --color-erase: #e0e0e0;                
+            --grid-bg: #e0e0e0;
+        }
+
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0; 
+            padding: 20px;
+        }
+
+        header {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+            width: 90%;
+            max-width: 550px; 
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5em;
+        }
+
+        .input-row input[type="number"], .input-row select {
+            width: 80px;
+            padding: 8px;
+            font-size: 1em;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            font-size: 1.1em;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+
+        .result-display {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        /* Haupt-Layout für die Visualisierung */
+        .main-container {
+            width: 90%;
+            max-width: 550px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Gitter-Design */
+        #grid-container {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            flex-grow: 1; 
+            aspect-ratio: 1 / 1;
+            border: 5px solid #666;
+            background-color: var(--grid-bg);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Kugel-Basis-Design */
+        .kugel {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            /* Standard-Kugel: Hintergrundfarbe des Gitters */
+            background-color: var(--grid-bg); 
+            border: 1px solid #ccc;
+            margin: 10%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.7em;
+            color: #333;
+            font-weight: bold;
+            position: relative; 
+            overflow: hidden; 
+            transition: background 0.3s;
+        }
+        
+        /* Klasse, um Zahlen auszublenden */
+        .hide-number {
+            color: transparent !important;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Interaktiver Mathezähler 🔢</h1>
+    </header>
+
+    <div class="controls">
+        
+        <div class="input-row">
+            <input type="number" id="zahl1" value="16" min="1" max="100">
+            <select id="operator">
+                <option value="+">+</option>
+                <option value="-">-</option>
+                <option value="*">*</option>
+                <option value="/">/</option>
+            </select>
+            <input type="number" id="zahl2" value="4" min="1" max="100">
+            <button onclick="visualizeCalculation()">Berechnen & Visualisieren</button>
+        </div>
+
+        <div class="result-display">
+            Ergebnis: <span id="result-text">---</span>
+        </div>
+
+        <div class="options">
+             <div class="result-toggle">
+                <input type="checkbox" id="toggleNumbers" onchange="toggleGridNumbers()" checked>
+                <label for="toggleNumbers">Zahlen im Gitter anzeigen</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div id="ones-row"></div>
+        <div class="grid-and-tens">
+            <div id="tens-column"></div>
+            <div id="grid-container">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        /* *** JavaScript (Logik) *** */
+
+        const GRID_SIZE = 10;
+        const MAX_GRID_NUMBER = GRID_SIZE * GRID_SIZE;
+        
+        // Konsistente Farbpaare (weicher und angenehmer)
+        const COLOR_PAIR_MAP = {
+            1: ['hsl(0, 70%, 50%)', 'hsl(30, 60%, 80%)'],      // Rot
+            2: ['hsl(30, 70%, 50%)', 'hsl(60, 60%, 80%)'],     // Orange
+            3: ['hsl(60, 70%, 45%)', 'hsl(90, 60%, 75%)'],     // Gelb-Grün
+            4: ['hsl(120, 65%, 45%)', 'hsl(180, 55%, 80%)'],   // Grün
+            5: ['hsl(180, 65%, 45%)', 'hsl(210, 55%, 75%)'],   // Cyan
+            6: ['hsl(240, 70%, 50%)', 'hsl(270, 60%, 80%)'],   // Blau
+            7: ['hsl(270, 70%, 45%)', 'hsl(300, 60%, 75%)'],   // Magenta
+            8: ['hsl(300, 70%, 50%)', 'hsl(330, 60%, 80%)'],   // Rosa
+            9: ['hsl(20, 70%, 45%)', 'hsl(50, 60%, 75%)'],     // Dunkel-Orange
+            10: ['hsl(220, 35%, 55%)', 'hsl(220, 25%, 90%)']  // Grau-Blau
+        };
+
+        const GRID_BG_COLOR = '#e0e0e0'; 
+
+
+        /**
+         * Gibt die konsistente Farbe für eine gegebene Zahl zurück, basierend auf ihrer Einerstelle.
+         * @param {number} zahl - Die Zahl (von 1 bis 100).
+         * @param {boolean} isDark - Ob die dunkle (erste) oder helle (zweite) Farbe des Paares gewünscht ist.
+         * @returns {string} HSL-Farbstring.
+         */
+        function getConsistentColor(zahl, isDark) {
+            let baseKey;
+            
+            if (zahl === 0) return GRID_BG_COLOR;
+
+            let einerStelle = zahl % 10;
+            
+            if (einerStelle === 0) {
+                baseKey = 10;
+            } else {
+                baseKey = einerStelle;
+            }
+
+            baseKey = Math.min(Math.max(baseKey, 1), 10); 
+
+            const colorPair = COLOR_PAIR_MAP[baseKey];
+            return isDark ? colorPair[0] : colorPair[1];
+        }
+
+
+        /**
+         * Erstellt das 10x10 Gitter.
+         */
+        function createGrid() {
+            const container = document.getElementById('grid-container');
+            container.innerHTML = '';
+            for (let i = 1; i <= MAX_GRID_NUMBER; i++) {
+                const kugel = document.createElement('div');
+                kugel.classList.add('kugel');
+                kugel.id = 'kugel-' + i;
+                kugel.textContent = i;
+                container.appendChild(kugel);
+            }
+        }
+
+        /**
+         * Setzt alle Kugeln auf den Standardzustand zurück.
+         */
+        function resetGrid() {
+            for (let i = 1; i <= MAX_GRID_NUMBER; i++) {
+                const kugel = document.getElementById('kugel-' + i);
+                if (kugel) {
+                    kugel.className = 'kugel'; 
+                    kugel.style.background = ''; 
+                }
+            }
+            document.getElementById('result-text').textContent = '---';
+        }
+
+        /**
+         * Hauptfunktion zur Durchführung der Berechnung und Visualisierung.
+         */
+        function visualizeCalculation() {
+            resetGrid(); 
+
+            const zahl1 = parseInt(document.getElementById('zahl1').value);
+            const operator = document.getElementById('operator').value;
+            const zahl2 = parseInt(document.getElementById('zahl2').value);
+            const resultDisplay = document.getElementById('result-text');
+
+            if (isNaN(zahl1) || isNaN(zahl2) || zahl1 < 1 || zahl2 < 1 || zahl1 > MAX_GRID_NUMBER || zahl2 > MAX_GRID_NUMBER) {
+                alert('Bitte geben Sie gültige Zahlen zwischen 1 und 100 ein.');
+                return;
+            }
+
+            let result;
+
+            // 1. Berechnung durchführen
+            try {
+                switch (operator) {
+                    case '+':
+                        result = zahl1 + zahl2;
+                        break;
+                    case '-':
+                        result = zahl1 - zahl2;
+                        break;
+                    case '*':
+                        result = zahl1 * zahl2;
+                        break;
+                    case '/':
+                        if (zahl2 === 0) { alert('Division durch Null ist nicht erlaubt!'); return; }
+                        result = Math.floor(zahl1 / zahl2);
+                        break;
+                    default:
+                        return;
+                }
+            } catch (e) {
+                alert('Ein Berechnungsfehler ist aufgetreten.');
+                return;
+            }
+            
+            resultDisplay.textContent = result;
+
+            if (operator !== '-' && result > MAX_GRID_NUMBER) {
+                resultDisplay.textContent += ` (Zu groß für das Gitter! Max. ${MAX_GRID_NUMBER})`;
+                return;
+            }
+            
+            if (operator === '-' && result < 0) {
+                resultDisplay.textContent += ' (Ergebnis negativ!)';
+                return;
+            }
+
+            // 2. Visualisierung durchführen
+            switch (operator) {
+                case '+':
+                    visualizeAddition(zahl1, zahl2);
+                    break;
+                case '-':
+                    visualizeSubtraction(zahl1, zahl2);
+                    break;
+                case '*':
+                    visualizeMultiplication(zahl1, zahl2);
+                    break;
+                case '/':
+                    visualizeDivision(zahl1, zahl2);
+                    break;
+            }
+        }
+
+        /**
+         * Visualisiert Addition (A + B).
+         * Fügt einen intelligenten Farbwechsel hinzu, wenn A und B dieselbe Einerstelle haben.
+         */
+        function visualizeAddition(a, b) {
+            const einerStelleA = a % 10 === 0 ? 10 : a % 10;
+            const einerStelleB = b % 10 === 0 ? 10 : b % 10;
+            
+            let isDarkA = true;
+            let isDarkB = false;
+
+            // KORREKTUR: Wenn die Einerstellen gleich sind, müssen wir einen Farb-Offset erzwingen, 
+            // um den Übergang von A zu B sichtbar zu machen.
+            if (einerStelleA === einerStelleB) {
+                // Hier erzwingen wir A = Dunkel und B = Hell (oder umgekehrt, Hauptsache sie sind verschieden)
+                isDarkA = true;
+                isDarkB = false; 
+            } else {
+                // Standardfall (verschiedene Farben)
+                isDarkA = true;
+                isDarkB = false;
+            }
+
+            const colorA = getConsistentColor(a, isDarkA);
+            const colorB = getConsistentColor(b, isDarkB); 
+
+            // Markiere A Kugeln mit Farbe A
+            for (let i = 1; i <= a; i++) {
+                const kugel = document.getElementById('kugel-' + i);
+                if (kugel) { kugel.style.backgroundColor = colorA; }
+            }
+            
+            // Markiere B Kugeln mit Farbe B (startend nach A)
+            for (let i = a + 1; i <= a + b; i++) {
+                const kugel = document.getElementById('kugel-' + i);
+                if (kugel) { kugel.style.backgroundColor = colorB; }
+            }
+        }
+
+        /**
+         * Visualisiert Subtraktion (A - B).
+         * Subtraktion braucht keinen speziellen Farb-Offset, da A die Grundfarbe vorgibt 
+         * und B nur die Menge markiert, die gelöscht wird.
+         */
+        function visualizeSubtraction(a, b) {
+            if (b > a) { return; } 
+
+            const colorA = getConsistentColor(a, true);
+
+            // Markiere alle A Kugeln zuerst mit Farbe A (die Farbe für die UNTERE Hälfte)
+            for (let i = 1; i <= a; i++) {
+                const kugel = document.getElementById('kugel-' + i);
+                if (kugel) { kugel.style.backgroundColor = colorA; }
+            }
+
+            // "Lösche" die letzten B Kugeln in der oberen Hälfte
+            const startErase = a - b + 1;
+            for (let i = startErase; i <= a; i++) {
+                const kugel = document.getElementById('kugel-' + i);
+                if (kugel) {
+                    // Untere Hälfte: Farbe von A, Obere Hälfte: Gitter-Hintergrund
+                    kugel.style.background = `linear-gradient(to top, ${colorA} 50%, ${GRID_BG_COLOR} 50%)`;
+                }
+            }
+        }
+
+        /**
+         * Visualisiert Multiplikation (A * B).
+         * Multiplikation braucht keinen Farb-Offset, da der Wechsel Dunkel/Hell durch den 'step' (Faktor A) erfolgt.
+         */
+        function visualizeMultiplication(a, b) {
+            const result = a * b;
+            if (result > MAX_GRID_NUMBER) { return; }
+
+            // Farben basieren auf der Einerstelle von B
+            const colorOdd = getConsistentColor(b, true);
+            const colorEven = getConsistentColor(b, false);
+            
+            for (let step = 1; step <= a; step++) {
+                const startNum = (step - 1) * b + 1;
+                const endNum = step * b;
+                
+                const stepColor = (step % 2 !== 0) ? colorOdd : colorEven;
+                
+                for (let i = startNum; i <= endNum; i++) {
+                    const kugel = document.getElementById('kugel-' + i);
+                    if (kugel) {
+                        kugel.style.backgroundColor = stepColor;
+                    }
+                }
+            }
+        }
+
+        /**
+         * Visualisiert Division (A / B = Quotient Rest Rest).
+         * Fügt einen intelligenten Farbwechsel hinzu, wenn A und B dieselbe Einerstelle haben.
+         */
+        function visualizeDivision(a, b) {
+            if (a === 0 || b === 0) return;
+
+            const quotient = Math.floor(a / b);
+            const remainder = a % b;
+
+            const einerStelleA = a % 10 === 0 ? 10 : a % 10;
+            const einerStelleB = b % 10 === 0 ? 10 : b % 10;
+            
+            // KORREKTUR: Wenn die Einerstellen gleich sind, muss die Farbe von A (linke Hälfte) 
+            // einen Kontrast zu den Farben von B (rechte Hälfte) bilden.
+            let isDarkA = true;
+            if (einerStelleA === einerStelleB) {
+                // Die Gruppenfarben von B sind Dunkel(B) und Hell(B).
+                // Damit A einen Kontrast zu BEIDEN hat, wählen wir die entgegengesetzte Farbe zu Dunkel(B) als Farbe für A.
+                // In unserem Farbschema verwenden wir einfach die helle Version der Farbe der Zahl A selbst.
+                isDarkA = false; 
+            }
+
+            // Farben: Menge A (links) und Divisor-Gruppen B (rechts)
+            const colorA = getConsistentColor(a, isDarkA); // A bekommt die korrigierte Helligkeit
+            const colorDivisorOdd = getConsistentColor(b, true); 
+            const colorDivisorEven = getConsistentColor(b, false); 
+            
+            // 1. Markiere alle Kugeln bis A (Menge)
+            for (let i = 1; i <= a; i++) {
+                const kugel = document.getElementById('kugel-' + i);
+                if (!kugel) continue;
+                
+                // 2. Rechte Hälfte (Gruppen des Divisors B)
+                const groupIndex = Math.ceil(i / b); 
+                const rightColor = (groupIndex % 2 !== 0) 
+                    ? colorDivisorOdd
+                    : colorDivisorEven;
+
+                // Setze den vertikalen Gradienten (links: Menge A, rechts: Divisor-Gruppe B)
+                kugel.style.background = `linear-gradient(to right, ${colorA} 50%, ${rightColor} 50%)`;
+            }
+            
+            // 3. Markiere den Rest (Remainder) gesondert
+            if (remainder > 0) {
+                 const startRemainder = a - remainder + 1;
+                 
+                 for (let i = startRemainder; i <= a; i++) {
+                     const kugel = document.getElementById('kugel-' + i);
+                     if (kugel) {
+                         // Rest: Linke Hälfte A-Farbe, rechte Hälfte Gitter-Hintergrund (unvollständige Gruppe)
+                          kugel.style.background = `linear-gradient(to right, ${colorA} 50%, ${GRID_BG_COLOR} 50%)`;
+                     }
+                 }
+            }
+            
+            // Zeige das Ergebnis
+            document.getElementById('result-text').textContent = `${quotient} Rest ${remainder}`;
+        }
+
+
+        /**
+         * Schaltet die Anzeige der Zahlen (1-100) in den Kugeln ein/aus.
+         */
+        function toggleGridNumbers() {
+            const showNumbers = document.getElementById('toggleNumbers').checked;
+            
+            for (let i = 1; i <= MAX_GRID_NUMBER; i++) {
+                const kugel = document.getElementById('kugel-' + i);
+                if (kugel) {
+                    if (showNumbers) {
+                        kugel.classList.remove('hide-number');
+                    } else {
+                        kugel.classList.add('hide-number');
+                    }
+                }
+            }
+        }
+
+
+        // Initialisierung beim Laden der Seite
+        createGrid();
+        toggleGridNumbers();
+    </script>
+</body>
+</html>
